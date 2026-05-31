@@ -136,14 +136,29 @@
       flex: 1;
       min-width: 0;
       height: 14px;
+      position: relative;
       background: #eee;
       border-radius: 4px;
       overflow: hidden;
     }
-    .ebar-fill {
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.05s linear;
+    .ebar-zero-marker {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: #aaa;
+      z-index: 1;
+    }
+    .ebar-neg-fill {
+      position: absolute;
+      top: 0; bottom: 0;
+      background: #888;   /* overridden inline */
+      border-radius: 4px 0 0 4px;
+    }
+    .ebar-pos-fill {
+      position: absolute;
+      top: 0; bottom: 0;
+      background: #888;   /* overridden inline */
+      border-radius: 0 4px 4px 0;
     }
     .eval {
       width: 56px;
@@ -246,17 +261,29 @@
     <h3>Energien</h3>
     <div class="erow">
       <span class="elabel">Lageenergie E&#x209A;</span>
-      <div class="ebar-bg"><div id="barPot" class="ebar-fill" style="background:#e08800;width:0%"></div></div>
+      <div class="ebar-bg">
+        <div class="ebar-zero-marker" id="zeroPot"></div>
+        <div class="ebar-neg-fill" id="barPotNeg" style="background:#e08800"></div>
+        <div class="ebar-pos-fill" id="barPotPos" style="background:#e08800"></div>
+      </div>
       <span class="eval" id="valPot">0 J</span>
     </div>
     <div class="erow">
       <span class="elabel">Kinetische E. E&#x1D4F;</span>
-      <div class="ebar-bg"><div id="barKin" class="ebar-fill" style="background:#228833;width:0%"></div></div>
+      <div class="ebar-bg">
+        <div class="ebar-zero-marker" id="zeroKin"></div>
+        <div class="ebar-neg-fill" id="barKinNeg" style="background:#228833"></div>
+        <div class="ebar-pos-fill" id="barKinPos" style="background:#228833"></div>
+      </div>
       <span class="eval" id="valKin">0 J</span>
     </div>
     <div class="erow">
       <span class="elabel">Federenergie E&#x1DA0;</span>
-      <div class="ebar-bg"><div id="barSpr" class="ebar-fill" style="background:#2255cc;width:0%"></div></div>
+      <div class="ebar-bg">
+        <div class="ebar-zero-marker" id="zeroSpr"></div>
+        <div class="ebar-neg-fill" id="barSprNeg" style="background:#2255cc"></div>
+        <div class="ebar-pos-fill" id="barSprPos" style="background:#2255cc"></div>
+      </div>
       <span class="eval" id="valSpr">0 J</span>
     </div>
   </div>
@@ -289,9 +316,15 @@
     const btnReset    = document.getElementById('btnReset');
     const phaseSlider  = document.getElementById('phaseSlider');
     const phaseLabel   = document.getElementById('phaseLabel');
-    const barPot  = document.getElementById('barPot');
-    const barKin  = document.getElementById('barKin');
-    const barSpr  = document.getElementById('barSpr');
+    const barPotPos = document.getElementById('barPotPos');
+    const barPotNeg = document.getElementById('barPotNeg');
+    const barKinPos = document.getElementById('barKinPos');
+    const barKinNeg = document.getElementById('barKinNeg');
+    const barSprPos = document.getElementById('barSprPos');
+    const barSprNeg = document.getElementById('barSprNeg');
+    const zeroPot   = document.getElementById('zeroPot');
+    const zeroKin   = document.getElementById('zeroKin');
+    const zeroSpr   = document.getElementById('zeroSpr');
     const valPot  = document.getElementById('valPot');
     const valKin  = document.getElementById('valKin');
     const valSpr  = document.getElementById('valSpr');
@@ -436,15 +469,42 @@
       }
 
       // ── Energiebalken ─────────────────────────────────────────────────────
-      const ePot = m * g * y;                        // kann negativ sein
+      const ePot = m * g * y;
       const eKin = 0.5 * m * vy * vy;
       const xSpr = y < 0 ? -y : 0;
       const eSpr = 0.5 * k * xSpr * xSpr;
-      const eMax = Math.max(E_START, ePot + eKin + eSpr, 1);
 
-      barPot.style.width = `${Math.max(0, ePot / eMax * 100).toFixed(1)}%`;
-      barKin.style.width = `${(eKin / eMax * 100).toFixed(1)}%`;
-      barSpr.style.width = `${(eSpr / eMax * 100).toFixed(1)}%`;
+      // Positive Skala: Gesamtenergie (Energieerhaltung)
+      const ePos = E_START;
+      // Negative Skala: minimale Lageenergie (unterer Totpunkt, vy=0)
+      // 0.5*k*y_min² + m*g*y_min - E_START = 0  →  y_min = (-mg - sqrt((mg)²+2k*E_START))/k
+      const mg = m * g;
+      const yMin = k > 0
+        ? (-mg - Math.sqrt(mg * mg + 2 * k * E_START)) / k
+        : -E_START / mg;
+      const eNeg = Math.max(Math.abs(m * g * yMin), 0.01);
+
+      // Einheitliche Skala: beide Seiten gleich (px proportional zur Energie)
+      const eScale = eNeg + ePos;  // Gesamtbreite = 100%
+      const zeroPct = eNeg / eScale * 100; // Nulllinie in % von links
+
+      // HTML-Energiebalken
+      function setBar(zeroEl, posEl, negEl, val) {
+        zeroEl.style.left = zeroPct.toFixed(2) + '%';
+        if (val >= 0) {
+          posEl.style.left  = zeroPct.toFixed(2) + '%';
+          posEl.style.width = Math.min(val / eScale * 100, 100 - zeroPct).toFixed(2) + '%';
+          negEl.style.width = '0%';
+        } else {
+          const wPct = Math.min(-val / eScale * 100, zeroPct);
+          negEl.style.left  = (zeroPct - wPct).toFixed(2) + '%';
+          negEl.style.width = wPct.toFixed(2) + '%';
+          posEl.style.width = '0%';
+        }
+      }
+      setBar(zeroPot, barPotPos, barPotNeg, ePot);
+      setBar(zeroKin, barKinPos, barKinNeg, eKin);
+      setBar(zeroSpr, barSprPos, barSprNeg, eSpr);
       valPot.textContent = `${ePot.toFixed(1)} J`;
       valKin.textContent = `${eKin.toFixed(1)} J`;
       valSpr.textContent = `${eSpr.toFixed(1)} J`;
