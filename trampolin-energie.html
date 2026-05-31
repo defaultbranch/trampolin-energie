@@ -170,10 +170,22 @@
     </defs>
 
     <!-- Trampolin-Rahmen -->
-    <line x1="100" y1="240" x2="100" y2="380" stroke="black" stroke-width="6"/>
-    <line x1="500" y1="240" x2="500" y2="380" stroke="black" stroke-width="6"/>
-    <line x1="70"  y1="380" x2="130" y2="380" stroke="black" stroke-width="4"/>
-    <line x1="470" y1="380" x2="530" y2="380" stroke="black" stroke-width="4"/>
+    <line x1="20"  y1="240" x2="20"  y2="380" stroke="black" stroke-width="6"/>
+    <line x1="455" y1="240" x2="455" y2="380" stroke="black" stroke-width="6"/>
+    <line x1="0"   y1="380" x2="45"  y2="380" stroke="black" stroke-width="4"/>
+    <line x1="430" y1="380" x2="480" y2="380" stroke="black" stroke-width="4"/>
+
+    <!-- Energie-Balken (SVG, rechts) -->
+    <!-- Nulllinie -->
+    <line x1="460" y1="240" x2="562" y2="240" stroke="#aaa" stroke-width="1" stroke-dasharray="4,3"/>
+    <!-- Balken -->
+    <rect id="svgBarPot" x="467" width="21" y="240" height="0" fill="#e08800" opacity="0.85"/>
+    <rect id="svgBarKin" x="499" width="21" y="240" height="0" fill="#228833" opacity="0.85"/>
+    <rect id="svgBarSpr" x="531" width="21" y="240" height="0" fill="#2255cc" opacity="0.85"/>
+    <!-- Kategorie-Labels (fix unter Nulllinie) -->
+    <text x="477" y="268" text-anchor="middle" font-size="11" fill="#e08800" font-weight="bold">Ep</text>
+    <text x="509" y="268" text-anchor="middle" font-size="11" fill="#228833" font-weight="bold">Ek</text>
+    <text x="541" y="268" text-anchor="middle" font-size="11" fill="#2255cc" font-weight="bold">Ef</text>
 
     <!-- Trampolin-Tuch -->
     <path id="trampoline" fill="none" stroke="black" stroke-width="3"/>
@@ -368,12 +380,15 @@
     }
 
     // ── Darstellung aktualisieren ─────────────────────────────────────────────
-    // Pfeil-Spalten links der Kugel (Kugelkante bei x=282), äquidistant
-    const AX   = [185, 220, 255]; // Fg, Fs, v
+    // Pfeil-Spalten links der Kugel (Kugelkante bei x=172), äquidistant
+    const AX   = [120, 153, 186]; // Fg, Fs, v
     const TICK = 8;               // halbe Tick-Länge px
     const tickFg = document.getElementById('tickFg');
     const tickFs = document.getElementById('tickFs');
     const tickV  = document.getElementById('tickV');
+    const svgBarPot = document.getElementById('svgBarPot');
+    const svgBarKin = document.getElementById('svgBarKin');
+    const svgBarSpr = document.getElementById('svgBarSpr');
 
     function render() {
       // Kugel-SVG-Position (ballY = Oberkante Kugel in SVG)
@@ -385,8 +400,8 @@
       const sag = y < 0 ? (-y * SCALE * 4 / 3) : 0;
       const cp  = TRAMP_SVG + sag;
       trampPath.setAttribute('d',
-        `M 100,${TRAMP_SVG} C 233,${cp} 367,${cp} 500,${TRAMP_SVG}`);
-      ball.setAttribute('cx', 300);
+        `M 20,${TRAMP_SVG} C 165,${cp} 310,${cp} 455,${TRAMP_SVG}`);
+      ball.setAttribute('cx', 238);
       ball.setAttribute('cy', ballY);
 
       // Nullpunkt-Ticks auf Kugelmitte-Höhe
@@ -433,7 +448,30 @@
       valPot.textContent = `${ePot.toFixed(1)} J`;
       valKin.textContent = `${eKin.toFixed(1)} J`;
       valSpr.textContent = `${eSpr.toFixed(1)} J`;
+      // SVG-Energiebalken: Skalierung so dass Ep-Höhe = Kugelmittenhöhe über Trampolin
+      // 1 J = SCALE / (m*g) px, d.h. Ep = m*g*y → y*SCALE px
+      const pxPerJ = SCALE / (m * g);
+      const maxBarPx = TRAMP_SVG - 30;  // Decke des SVG-Balkenbereichs
 
+      // Ep: positiv = nach oben, negativ = nach unten
+      const potPx = ePot * pxPerJ;
+      if (potPx >= 0) {
+        const h = Math.min(potPx, maxBarPx);
+        svgBarPot.setAttribute('y', TRAMP_SVG - h);
+        svgBarPot.setAttribute('height', h);
+      } else {
+        const h = Math.min(-potPx, 80);
+        svgBarPot.setAttribute('y', TRAMP_SVG);
+        svgBarPot.setAttribute('height', h);
+      }
+      // Ek: immer positiv, nach oben
+      const kinPx = Math.min(eKin * pxPerJ, maxBarPx);
+      svgBarKin.setAttribute('y', TRAMP_SVG - kinPx);
+      svgBarKin.setAttribute('height', kinPx);
+      // Es: immer positiv, nach oben
+      const sprPx = Math.min(eSpr * pxPerJ, maxBarPx);
+      svgBarSpr.setAttribute('y', TRAMP_SVG - sprPx);
+      svgBarSpr.setAttribute('height', sprPx);
       // v-Pfeil: Nullpunkt = ballCY, positiv nach oben
       const V_SCALE = 30;  // px/(m/s)
       const vLen = vy * V_SCALE;
