@@ -397,7 +397,7 @@
     let E_START = m * g * h0;
 
     // Einheitliche Balkenskalierung — konstant für gegebene Parameter
-    // ePos = Maximum (Gesamtenergie), eNeg = |minimale Lageenergie|, beide unabhängig vom Phasenzustand
+    // ePos = max. Federenergie = E_START + eNeg, eNeg = |minimale Lageenergie|
     let ePos = E_START;
     let eNeg = 0.01;
     let eScale = ePos + eNeg;
@@ -408,8 +408,8 @@
       const yMin = k > 0
         ? (-mg - Math.sqrt(mg * mg + 2 * k * E_START)) / k
         : -E_START / mg;
-      ePos   = E_START;
       eNeg   = Math.max(Math.abs(mg * yMin), 0.01);
+      ePos   = E_START + eNeg;   // max spring energy (= E_START + mg·|yMin|)
       eScale = ePos + eNeg;
       zeroPct = eNeg / eScale * 100;
     }
@@ -525,15 +525,17 @@
 
     function updateSvgRanges() {
       const svgPxPerJ = SCALE / (m * g);  // Ep bar top tracks ball bottom
-      // Ep: full range — from ePos above zero down to eNeg below zero
-      svgRangePot.setAttribute('y',      TRAMP_SVG - ePos * svgPxPerJ);
-      svgRangePot.setAttribute('height', eScale * svgPxPerJ);
-      // Ek: 0 to ePos (always positive)
-      svgRangeKin.setAttribute('y',      TRAMP_SVG - ePos * svgPxPerJ);
-      svgRangeKin.setAttribute('height', ePos * svgPxPerJ);
-      // Ef: 0 to eScale (max spring energy = ePos + eNeg, exceeds zero-to-top range)
-      svgRangeSpr.setAttribute('y',      TRAMP_SVG - eScale * svgPxPerJ);
-      svgRangeSpr.setAttribute('height', eScale * svgPxPerJ);
+      const efMax = E_START + eNeg;       // max spring energy
+      const ekMax = k > 0 ? E_START + 0.5 * (m * g) * (m * g) / k : E_START;  // max kinetic energy
+      // Ep: full range — from E_START above zero down to eNeg below zero
+      svgRangePot.setAttribute('y',      TRAMP_SVG - E_START * svgPxPerJ);
+      svgRangePot.setAttribute('height', (E_START + eNeg) * svgPxPerJ);
+      // Ek: 0 to ekMax
+      svgRangeKin.setAttribute('y',      TRAMP_SVG - ekMax * svgPxPerJ);
+      svgRangeKin.setAttribute('height', ekMax * svgPxPerJ);
+      // Ef: 0 to efMax
+      svgRangeSpr.setAttribute('y',      TRAMP_SVG - efMax * svgPxPerJ);
+      svgRangeSpr.setAttribute('height', efMax * svgPxPerJ);
     }
 
     function render() {
