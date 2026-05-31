@@ -404,33 +404,46 @@
       zeroPct = eNeg / eScale * 100;
     }
 
-    // ── Periode vorberechnen ──────────────────────────────────────────────────
-    const N_SNAP = 1000;
-    let snapshots  = [];
-    let periodTime = 1.0;  // wird von precompute() gesetzt
+    // ── Analytische Periode ───────────────────────────────────────────────────
+    let periodTime = 1.0;
+    let omegaN, tAir, tSpring, vyImpact, aSpr, bSpr, yEq;
+
+    // Berechnet Perioden-Parameter analytisch
+    function computePeriod() {
+      omegaN   = Math.sqrt(k / m);
+      tAir     = Math.sqrt(2 * h0 / g);           // Fallzeit h0 → 0
+      vyImpact = -Math.sqrt(2 * g * h0);           // Aufprallgeschwindigkeit (negativ)
+      yEq      = -m * g / k;                       // Gleichgewichtslage
+      aSpr     = -yEq;                             // = m·g/k
+      bSpr     = vyImpact / omegaN;
+      // Kontaktdauer: y(τ)=0 gelöst über Halbwinkel-Substitution
+      tSpring  = 2 * (Math.PI + Math.atan(vyImpact * omegaN / g)) / omegaN;
+      periodTime = 2 * tAir + tSpring;
+    }
+
+    // Gibt {y, vy} für Zeit t innerhalb einer Periode zurück (exakt)
+    function stateAtTime(t) {
+      if (t <= tAir) {
+        // Freier Fall von h0 auf das Tuch
+        return { y: h0 - 0.5 * g * t * t, vy: -g * t };
+      } else if (t <= tAir + tSpring) {
+        // Federkontakt: harmonische Schwingung um yEq
+        const tau = t - tAir;
+        const wt  = omegaN * tau;
+        return {
+          y:  yEq + aSpr * Math.cos(wt) + bSpr * Math.sin(wt),
+          vy: omegaN * (-aSpr * Math.sin(wt) + bSpr * Math.cos(wt))
+        };
+      } else {
+        // Freier Aufstieg zurück zu h0
+        const tau    = t - tAir - tSpring;
+        const vyExit = -vyImpact;   // positiv
+        return { y: vyExit * tau - 0.5 * g * tau * tau, vy: vyExit - g * tau };
+      }
+    }
 
     function precompute() {
-      const dt = 0.0005;
-      let sy = h0, svy = 0.0, t = 0;
-      let started = false;
-      const states = [{y: sy, vy: svy}];
-
-      for (let iter = 0; iter < 200000; iter++) {
-        const xs = sy < 0 ? -sy : 0;
-        const a  = (k * xs - m * g) / m;
-        svy += a * dt;
-        sy  += svy * dt;
-        t   += dt;
-        states.push({y: sy, vy: svy});
-        if (!started && sy < h0 * 0.9) started = true;
-        if (started && sy >= h0 && svy >= 0) { periodTime = t; break; }
-      }
-
-      snapshots = [];
-      for (let i = 0; i < N_SNAP; i++) {
-        const idx = Math.min(Math.round(i / N_SNAP * (states.length - 1)), states.length - 1);
-        snapshots.push(states[idx]);
-      }
+      computePeriod();
     }
     // precompute() is called by applyParams() on init below
 
@@ -650,20 +663,6 @@
       }
     }
 
-    // ── Physik-Schritt ────────────────────────────────────────────────────────
-    function step(dt) {
-      const x_spring = y < 0 ? -y : 0;
-      const Fs = k * x_spring;
-      const Fg = m * g;
-      const a  = (Fs - Fg) / m;   // netto Beschleunigung (aufwärts positiv)
-
-      vy += a * dt;
-      y  += vy * dt;
-
-      // Kugel kann nicht tiefer fallen als maximale Auslenkung (Boden)
-      // (physikalisch wird das durch die Federkraft begrenzt – kein extra Clamp nötig)
-    }
-
     // ── Slider-Anzeige aktualisieren ─────────────────────────────────────────
     function updateSlider() {
       const pct = phaseTime / periodTime;  // 0..1
@@ -676,12 +675,9 @@
       if (!running) return;
       if (!seeking && lastTime !== null) {
         const dt = Math.min((ts - lastTime) / 1000, 0.033);
-        // Substeps für numerische Stabilität: ω·dt_sub < 1
-        const dtMax = 0.9 * Math.sqrt(m / k);
-        const n = Math.max(1, Math.ceil(dt / dtMax));
-        const dtSub = dt / n;
-        for (let i = 0; i < n; i++) step(dtSub);
         phaseTime = (phaseTime + dt) % periodTime;
+        const s = stateAtTime(phaseTime);
+        y = s.y; vy = s.vy;
         updateSlider();
       }
       lastTime = ts;
@@ -716,10 +712,9 @@
 
     phaseSlider.addEventListener('input', () => {
       const pct = phaseSlider.value / 1000;           // 0..1
-      const idx = Math.min(Math.floor(pct * N_SNAP), N_SNAP - 1);
-      y  = snapshots[idx].y;
-      vy = snapshots[idx].vy;
       phaseTime = pct * periodTime;
+      const s = stateAtTime(phaseTime);
+      y = s.y; vy = s.vy;
       phaseLabel.textContent = `${Math.round(pct * 100)} %`;
       render();
     });
