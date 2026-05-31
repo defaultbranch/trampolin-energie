@@ -200,6 +200,10 @@
     <!-- Energie-Balken (SVG, rechts) -->
     <!-- Nulllinie -->
     <line x1="460" y1="240" x2="562" y2="240" stroke="#aaa" stroke-width="1" stroke-dasharray="4,3"/>
+    <!-- Bereich-Hintergründe (min–max über eine Periode) -->
+    <rect id="svgRangePot" x="467" width="21" y="240" height="0" fill="#e08800" opacity="0.18"/>
+    <rect id="svgRangeKin" x="499" width="21" y="240" height="0" fill="#228833" opacity="0.18"/>
+    <rect id="svgRangeSpr" x="531" width="21" y="240" height="0" fill="#2255cc" opacity="0.18"/>
     <!-- Balken -->
     <rect id="svgBarPot" x="467" width="21" y="240" height="0" fill="#e08800" opacity="0.85"/>
     <rect id="svgBarKin" x="499" width="21" y="240" height="0" fill="#228833" opacity="0.85"/>
@@ -470,6 +474,7 @@
       // Simulation zurücksetzen + Snapshots neu berechnen
       y = h0; vy = 0.0; phaseTime = 0;
       precompute();
+      updateSvgRanges();
       updateSlider();
       render();
     }
@@ -508,9 +513,25 @@
     const tickFg = document.getElementById('tickFg');
     const tickFs = document.getElementById('tickFs');
     const tickV  = document.getElementById('tickV');
+    const svgRangePot = document.getElementById('svgRangePot');
+    const svgRangeKin = document.getElementById('svgRangeKin');
+    const svgRangeSpr = document.getElementById('svgRangeSpr');
     const svgBarPot = document.getElementById('svgBarPot');
     const svgBarKin = document.getElementById('svgBarKin');
     const svgBarSpr = document.getElementById('svgBarSpr');
+
+    function updateSvgRanges() {
+      const svgPxPerJ = SCALE / (m * g);  // Ep bar top tracks ball bottom
+      // Ep: full range — from ePos above zero down to eNeg below zero
+      svgRangePot.setAttribute('y',      TRAMP_SVG - ePos * svgPxPerJ);
+      svgRangePot.setAttribute('height', eScale * svgPxPerJ);
+      // Ek: 0 to ePos (always positive)
+      svgRangeKin.setAttribute('y',      TRAMP_SVG - ePos * svgPxPerJ);
+      svgRangeKin.setAttribute('height', ePos * svgPxPerJ);
+      // Ef: 0 to eScale (max spring energy = ePos + eNeg, exceeds zero-to-top range)
+      svgRangeSpr.setAttribute('y',      TRAMP_SVG - eScale * svgPxPerJ);
+      svgRangeSpr.setAttribute('height', eScale * svgPxPerJ);
+    }
 
     function render() {
       // Kugel-SVG-Position (ballY = Oberkante Kugel in SVG)
@@ -634,8 +655,7 @@
       }
       // SVG-Energiebalken: einheitliche Skala identisch zu HTML-Balken
       // ePos (=E_START) → volle Höhe über Nulllinie; eNeg → Tiefe unter Nulllinie
-      const svgMaxPx  = TRAMP_SVG - 30;          // verfügbare Pixel über Nulllinie (y=30)
-      const svgPxPerJ = svgMaxPx / ePos;          // E_START → svgMaxPx px
+      const svgPxPerJ = SCALE / (m * g);  // Ep bar top tracks ball bottom
 
       // Ep: positiv = nach oben, negativ = nach unten
       const potPx = ePot * svgPxPerJ;
