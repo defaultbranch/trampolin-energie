@@ -157,9 +157,14 @@
     .ebar-pos-fill {
       position: absolute;
       top: 0; bottom: 0;
-      background: #888;   /* overridden inline */
       border-radius: 0 4px 4px 0;
     }
+    .ebar-stacked-fill {
+      position: absolute;
+      top: 0; bottom: 0;
+    }
+
+    #stackedRow, #legendRow { display: none; }
     .eval {
       width: 56px;
       text-align: right;
@@ -259,7 +264,7 @@
 
   <div id="energyBox">
     <h3>Energien</h3>
-    <div class="erow">
+    <div id="rowPot" class="erow">
       <span class="elabel">Lageenergie E&#x209A;</span>
       <div class="ebar-bg">
         <div class="ebar-zero-marker" id="zeroPot"></div>
@@ -268,7 +273,7 @@
       </div>
       <span class="eval" id="valPot">0 J</span>
     </div>
-    <div class="erow">
+    <div id="rowKin" class="erow">
       <span class="elabel">Kinetische E. E&#x1D4F;</span>
       <div class="ebar-bg">
         <div class="ebar-zero-marker" id="zeroKin"></div>
@@ -277,7 +282,7 @@
       </div>
       <span class="eval" id="valKin">0 J</span>
     </div>
-    <div class="erow">
+    <div id="rowSpr" class="erow">
       <span class="elabel">Federenergie E&#x1DA0;</span>
       <div class="ebar-bg">
         <div class="ebar-zero-marker" id="zeroSpr"></div>
@@ -285,6 +290,34 @@
         <div class="ebar-pos-fill" id="barSprPos" style="background:#2255cc"></div>
       </div>
       <span class="eval" id="valSpr">0 J</span>
+    </div>
+
+    <!-- Gestapelter Balken -->
+    <div id="stackedRow" class="erow">
+      <span class="elabel">Energie E</span>
+      <div class="ebar-bg">
+        <div class="ebar-zero-marker" id="zeroStack"></div>
+        <!-- negative Ep -->
+        <div class="ebar-stacked-fill" id="stkPotNeg" style="background:#e08800"></div>
+        <!-- positive Ep -->
+        <div class="ebar-stacked-fill" id="stkPotPos" style="background:#e08800"></div>
+        <!-- Ek rechts an Ep -->
+        <div class="ebar-stacked-fill" id="stkKin"    style="background:#228833"></div>
+        <!-- Ef rechts an Ek -->
+        <div class="ebar-stacked-fill" id="stkSpr"    style="background:#2255cc"></div>
+      </div>
+      <span class="eval"></span>
+    </div>
+    <!-- Legende -->
+    <div id="legendRow">
+      <span style="color:#e08800">&#9632; Ep</span>
+      <span style="color:#228833">&#9632; Ek</span>
+      <span style="color:#2255cc">&#9632; Ef</span>
+    </div>
+
+    <div style="margin-top:10px; font-size:13px; color:#444; display:flex; align-items:center; gap:6px;">
+      <input type="checkbox" id="chkStack">
+      <label for="chkStack">stapeln</label>
     </div>
   </div>
 
@@ -325,6 +358,24 @@
     const zeroPot   = document.getElementById('zeroPot');
     const zeroKin   = document.getElementById('zeroKin');
     const zeroSpr   = document.getElementById('zeroSpr');
+    const chkStack  = document.getElementById('chkStack');
+    const energyBox = document.getElementById('energyBox');
+    const zeroStack = document.getElementById('zeroStack');
+    const stkPotNeg = document.getElementById('stkPotNeg');
+    const stkPotPos = document.getElementById('stkPotPos');
+    const stkKin    = document.getElementById('stkKin');
+    const stkSpr    = document.getElementById('stkSpr');
+
+    chkStack.addEventListener('change', applyStackMode);
+    function applyStackMode() {
+      const s = chkStack.checked;
+      document.getElementById('rowPot').style.display    = s ? 'none' : '';
+      document.getElementById('rowKin').style.display    = s ? 'none' : '';
+      document.getElementById('rowSpr').style.display    = s ? 'none' : '';
+      document.getElementById('stackedRow').style.display = s ? 'flex' : 'none';
+      document.getElementById('legendRow').style.display  = s ? 'flex' : 'none';
+    }
+    applyStackMode();
     const valPot  = document.getElementById('valPot');
     const valKin  = document.getElementById('valKin');
     const valSpr  = document.getElementById('valSpr');
@@ -508,6 +559,34 @@
       valPot.textContent = `${ePot.toFixed(1)} J`;
       valKin.textContent = `${eKin.toFixed(1)} J`;
       valSpr.textContent = `${eSpr.toFixed(1)} J`;
+
+      // Gestapelter Balken
+      zeroStack.style.left = zeroPct.toFixed(2) + '%';
+      if (ePot >= 0) {
+        // Ep positiv: [zero .. zero+ePot% .. +Ek .. +Ef]
+        const epW  = Math.min(ePot / eScale * 100, 100 - zeroPct);
+        const ekW  = Math.min(eKin / eScale * 100, 100 - zeroPct - epW);
+        const esW  = Math.min(eSpr / eScale * 100, 100 - zeroPct - epW - ekW);
+        stkPotNeg.style.width = '0%';
+        stkPotPos.style.left  = zeroPct.toFixed(2) + '%';
+        stkPotPos.style.width = epW.toFixed(2) + '%';
+        stkKin.style.left     = (zeroPct + epW).toFixed(2) + '%';
+        stkKin.style.width    = ekW.toFixed(2) + '%';
+        stkSpr.style.left     = (zeroPct + epW + ekW).toFixed(2) + '%';
+        stkSpr.style.width    = esW.toFixed(2) + '%';
+      } else {
+        // Ep negativ: Ep links von zero, Ek+Ef rechts
+        const epNW = Math.min(-ePot / eScale * 100, zeroPct);
+        const ekW  = Math.min(eKin  / eScale * 100, 100 - zeroPct);
+        const esW  = Math.min(eSpr  / eScale * 100, 100 - zeroPct - ekW);
+        stkPotNeg.style.left  = (zeroPct - epNW).toFixed(2) + '%';
+        stkPotNeg.style.width = epNW.toFixed(2) + '%';
+        stkPotPos.style.width = '0%';
+        stkKin.style.left     = zeroPct.toFixed(2) + '%';
+        stkKin.style.width    = ekW.toFixed(2) + '%';
+        stkSpr.style.left     = (zeroPct + ekW).toFixed(2) + '%';
+        stkSpr.style.width    = esW.toFixed(2) + '%';
+      }
       // SVG-Energiebalken: Skalierung so dass Ep-Höhe = Kugelmittenhöhe über Trampolin
       // 1 J = SCALE / (m*g) px, d.h. Ep = m*g*y → y*SCALE px
       const pxPerJ = SCALE / (m * g);
