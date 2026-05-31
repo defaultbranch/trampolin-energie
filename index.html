@@ -616,14 +616,17 @@
       legValSpr.textContent = `${eSpr.toFixed(1)} J`;
 
       // Gestapelter Balken — running sum
-      zeroStack.style.left = zeroPct.toFixed(2) + '%';
-      let cursor = zeroPct;
+      // Scale: left extent = eNeg (for negative Ep), right extent = E_START; total = E_START + eNeg
+      const stkScale   = E_START + eNeg;
+      const stkZeroPct = eNeg / stkScale * 100;
+      zeroStack.style.left = stkZeroPct.toFixed(2) + '%';
+      let cursor = stkZeroPct;
 
-      const epW = ePot / eScale * 100;  // signed
+      const epW = ePot / stkScale * 100;  // signed
       const epStart = cursor; cursor += epW;
-      const ekW = eKin / eScale * 100;
+      const ekW = eKin / stkScale * 100;
       const ekStart = cursor; cursor += ekW;
-      const esW = eSpr / eScale * 100;
+      const esW = eSpr / stkScale * 100;
       const esStart = cursor; cursor += esW;
 
       if (epW >= 0) {
