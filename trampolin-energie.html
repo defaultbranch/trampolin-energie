@@ -161,7 +161,7 @@
     }
     .ebar-stacked-fill {
       position: absolute;
-      top: 0; bottom: 0;
+      top: 0; height: 100%;
     }
 
     #stackedRow, #legendRow { display: none; }
@@ -297,19 +297,21 @@
       <span class="elabel">Energie E</span>
       <div class="ebar-bg">
         <div class="ebar-zero-marker" id="zeroStack"></div>
-        <!-- negative Ep -->
+        <!-- negative Ep (obere Hälfte bei Richtungswechsel) -->
         <div class="ebar-stacked-fill" id="stkPotNeg" style="background:#e08800"></div>
-        <!-- positive Ep -->
+        <!-- positive Ep (volle Höhe) -->
         <div class="ebar-stacked-fill" id="stkPotPos" style="background:#e08800"></div>
-        <!-- Ek rechts an Ep -->
+        <!-- vertikaler Verbinder am Richtungswechselpunkt -->
+        <div class="ebar-stacked-fill" id="stkConnector" style="background:#666;opacity:0.5;z-index:2"></div>
+        <!-- Ek -->
         <div class="ebar-stacked-fill" id="stkKin"    style="background:#228833"></div>
-        <!-- Ef rechts an Ek -->
+        <!-- Ef -->
         <div class="ebar-stacked-fill" id="stkSpr"    style="background:#2255cc"></div>
       </div>
       <span class="eval"></span>
     </div>
     <!-- Legende -->
-    <div id="legendRow">
+    <div id="legendRow" style="margin-top:5px; font-size:12px; gap:14px; padding-left:130px;">
       <span style="color:#e08800">&#9632; Ep</span>
       <span style="color:#228833">&#9632; Ek</span>
       <span style="color:#2255cc">&#9632; Ef</span>
@@ -360,11 +362,12 @@
     const zeroSpr   = document.getElementById('zeroSpr');
     const chkStack  = document.getElementById('chkStack');
     const energyBox = document.getElementById('energyBox');
-    const zeroStack = document.getElementById('zeroStack');
-    const stkPotNeg = document.getElementById('stkPotNeg');
-    const stkPotPos = document.getElementById('stkPotPos');
-    const stkKin    = document.getElementById('stkKin');
-    const stkSpr    = document.getElementById('stkSpr');
+    const zeroStack    = document.getElementById('zeroStack');
+    const stkPotNeg    = document.getElementById('stkPotNeg');
+    const stkPotPos    = document.getElementById('stkPotPos');
+    const stkConnector = document.getElementById('stkConnector');
+    const stkKin       = document.getElementById('stkKin');
+    const stkSpr       = document.getElementById('stkSpr');
 
     chkStack.addEventListener('change', applyStackMode);
     function applyStackMode() {
@@ -382,6 +385,24 @@
 
     // Gesamtenergie bei Start (Referenz für Balkenskalierung) — wird nach Parameteränderung neu gesetzt
     let E_START = m * g * h0;
+
+    // Einheitliche Balkenskalierung — konstant für gegebene Parameter
+    // ePos = Maximum (Gesamtenergie), eNeg = |minimale Lageenergie|, beide unabhängig vom Phasenzustand
+    let ePos = E_START;
+    let eNeg = 0.01;
+    let eScale = ePos + eNeg;
+    let zeroPct = eNeg / eScale * 100;
+
+    function computeEScale() {
+      const mg = m * g;
+      const yMin = k > 0
+        ? (-mg - Math.sqrt(mg * mg + 2 * k * E_START)) / k
+        : -E_START / mg;
+      ePos   = E_START;
+      eNeg   = Math.max(Math.abs(mg * yMin), 0.01);
+      eScale = ePos + eNeg;
+      zeroPct = eNeg / eScale * 100;
+    }
 
     // ── Periode vorberechnen ──────────────────────────────────────────────────
     const N_SNAP = 1000;
@@ -426,6 +447,7 @@
       h0  = parseFloat(sliderHeight.value);
       k   = Math.round(500 * Math.pow(200, sliderK.value / 1000));
       E_START = m * g * h0;
+      computeEScale();
       valMassEl.textContent   = `${m} kg`;
       valHeightEl.textContent = `${h0.toFixed(1)} m`;
       valKEl.textContent      = `${k} N/m`;
@@ -525,19 +547,7 @@
       const xSpr = y < 0 ? -y : 0;
       const eSpr = 0.5 * k * xSpr * xSpr;
 
-      // Positive Skala: Gesamtenergie (Energieerhaltung)
-      const ePos = E_START;
-      // Negative Skala: minimale Lageenergie (unterer Totpunkt, vy=0)
-      // 0.5*k*y_min² + m*g*y_min - E_START = 0  →  y_min = (-mg - sqrt((mg)²+2k*E_START))/k
-      const mg = m * g;
-      const yMin = k > 0
-        ? (-mg - Math.sqrt(mg * mg + 2 * k * E_START)) / k
-        : -E_START / mg;
-      const eNeg = Math.max(Math.abs(m * g * yMin), 0.01);
-
-      // Einheitliche Skala: beide Seiten gleich (px proportional zur Energie)
-      const eScale = eNeg + ePos;  // Gesamtbreite = 100%
-      const zeroPct = eNeg / eScale * 100; // Nulllinie in % von links
+      // Skalierung: ePos/eNeg/eScale/zeroPct sind Modul-Konstanten, bestimmt durch Parameter
 
       // HTML-Energiebalken
       function setBar(zeroEl, posEl, negEl, val) {
@@ -560,55 +570,69 @@
       valKin.textContent = `${eKin.toFixed(1)} J`;
       valSpr.textContent = `${eSpr.toFixed(1)} J`;
 
-      // Gestapelter Balken
+      // Gestapelter Balken — running sum
       zeroStack.style.left = zeroPct.toFixed(2) + '%';
-      if (ePot >= 0) {
-        // Ep positiv: [zero .. zero+ePot% .. +Ek .. +Ef]
-        const epW  = Math.min(ePot / eScale * 100, 100 - zeroPct);
-        const ekW  = Math.min(eKin / eScale * 100, 100 - zeroPct - epW);
-        const esW  = Math.min(eSpr / eScale * 100, 100 - zeroPct - epW - ekW);
-        stkPotNeg.style.width = '0%';
-        stkPotPos.style.left  = zeroPct.toFixed(2) + '%';
+      let cursor = zeroPct;
+
+      const epW = ePot / eScale * 100;  // signed
+      const epStart = cursor; cursor += epW;
+      const ekW = eKin / eScale * 100;
+      const ekStart = cursor; cursor += ekW;
+      const esW = eSpr / eScale * 100;
+      const esStart = cursor; cursor += esW;
+
+      if (epW >= 0) {
+        // Kein Richtungswechsel: alle Balken in einer Zeile, volle Höhe
+        stkPotNeg.style.width    = '0%';
+        stkConnector.style.width = '0%';
+        stkPotPos.style.top = '0'; stkPotPos.style.height = '100%';
+        stkPotPos.style.left  = epStart.toFixed(2) + '%';
         stkPotPos.style.width = epW.toFixed(2) + '%';
-        stkKin.style.left     = (zeroPct + epW).toFixed(2) + '%';
-        stkKin.style.width    = ekW.toFixed(2) + '%';
-        stkSpr.style.left     = (zeroPct + epW + ekW).toFixed(2) + '%';
-        stkSpr.style.width    = esW.toFixed(2) + '%';
+        stkKin.style.top = '0'; stkKin.style.height = '100%';
+        stkKin.style.left  = ekStart.toFixed(2) + '%';
+        stkKin.style.width = ekW.toFixed(2) + '%';
+        stkSpr.style.top = '0'; stkSpr.style.height = '100%';
+        stkSpr.style.left  = esStart.toFixed(2) + '%';
+        stkSpr.style.width = esW.toFixed(2) + '%';
       } else {
-        // Ep negativ: Ep links von zero, Ek+Ef rechts
-        const epNW = Math.min(-ePot / eScale * 100, zeroPct);
-        const ekW  = Math.min(eKin  / eScale * 100, 100 - zeroPct);
-        const esW  = Math.min(eSpr  / eScale * 100, 100 - zeroPct - ekW);
-        stkPotNeg.style.left  = (zeroPct - epNW).toFixed(2) + '%';
-        stkPotNeg.style.width = epNW.toFixed(2) + '%';
+        // Richtungswechsel bei ekStart (= epStart + epW = linkes Ende von Ep)
+        // Obere Hälfte: Ep geht links, untere Hälfte: Ek+Ef starten am selben Punkt
         stkPotPos.style.width = '0%';
-        stkKin.style.left     = zeroPct.toFixed(2) + '%';
-        stkKin.style.width    = ekW.toFixed(2) + '%';
-        stkSpr.style.left     = (zeroPct + ekW).toFixed(2) + '%';
-        stkSpr.style.width    = esW.toFixed(2) + '%';
+        stkPotNeg.style.top = '0'; stkPotNeg.style.height = '50%';
+        stkPotNeg.style.left  = ekStart.toFixed(2) + '%';   // linkes Ende
+        stkPotNeg.style.width = Math.abs(epW).toFixed(2) + '%';
+        // Verbinder am Richtungswechselpunkt
+        stkConnector.style.top = '0'; stkConnector.style.height = '100%';
+        stkConnector.style.left  = ekStart.toFixed(2) + '%';
+        stkConnector.style.width = '2px';
+        // Ek + Ef in unterer Hälfte, ab ekStart
+        stkKin.style.top = '50%'; stkKin.style.height = '50%';
+        stkKin.style.left  = ekStart.toFixed(2) + '%';
+        stkKin.style.width = ekW.toFixed(2) + '%';
+        stkSpr.style.top = '50%'; stkSpr.style.height = '50%';
+        stkSpr.style.left  = esStart.toFixed(2) + '%';
+        stkSpr.style.width = esW.toFixed(2) + '%';
       }
-      // SVG-Energiebalken: Skalierung so dass Ep-Höhe = Kugelmittenhöhe über Trampolin
-      // 1 J = SCALE / (m*g) px, d.h. Ep = m*g*y → y*SCALE px
-      const pxPerJ = SCALE / (m * g);
-      const maxBarPx = TRAMP_SVG - 30;  // Decke des SVG-Balkenbereichs
+      // SVG-Energiebalken: einheitliche Skala identisch zu HTML-Balken
+      // ePos (=E_START) → volle Höhe über Nulllinie; eNeg → Tiefe unter Nulllinie
+      const svgMaxPx  = TRAMP_SVG - 30;          // verfügbare Pixel über Nulllinie (y=30)
+      const svgPxPerJ = svgMaxPx / ePos;          // E_START → svgMaxPx px
 
       // Ep: positiv = nach oben, negativ = nach unten
-      const potPx = ePot * pxPerJ;
+      const potPx = ePot * svgPxPerJ;
       if (potPx >= 0) {
-        const h = Math.min(potPx, maxBarPx);
-        svgBarPot.setAttribute('y', TRAMP_SVG - h);
-        svgBarPot.setAttribute('height', h);
+        svgBarPot.setAttribute('y', TRAMP_SVG - potPx);
+        svgBarPot.setAttribute('height', potPx);
       } else {
-        const h = Math.min(-potPx, 80);
         svgBarPot.setAttribute('y', TRAMP_SVG);
-        svgBarPot.setAttribute('height', h);
+        svgBarPot.setAttribute('height', -potPx);
       }
       // Ek: immer positiv, nach oben
-      const kinPx = Math.min(eKin * pxPerJ, maxBarPx);
+      const kinPx = eKin * svgPxPerJ;
       svgBarKin.setAttribute('y', TRAMP_SVG - kinPx);
       svgBarKin.setAttribute('height', kinPx);
-      // Es: immer positiv, nach oben
-      const sprPx = Math.min(eSpr * pxPerJ, maxBarPx);
+      // Ef: immer positiv, nach oben
+      const sprPx = eSpr * svgPxPerJ;
       svgBarSpr.setAttribute('y', TRAMP_SVG - sprPx);
       svgBarSpr.setAttribute('height', sprPx);
       // v-Pfeil: Nullpunkt = ballCY, positiv nach oben
