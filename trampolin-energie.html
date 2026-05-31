@@ -209,9 +209,9 @@
     <rect id="svgBarKin" x="499" width="21" y="240" height="0" fill="#228833" opacity="0.85"/>
     <rect id="svgBarSpr" x="531" width="21" y="240" height="0" fill="#2255cc" opacity="0.85"/>
     <!-- Kategorie-Labels (fix unter Nulllinie) -->
-    <text x="477" y="268" text-anchor="middle" font-size="11" fill="#e08800" font-weight="bold">Ep</text>
-    <text x="509" y="268" text-anchor="middle" font-size="11" fill="#228833" font-weight="bold">Ek</text>
-    <text x="541" y="268" text-anchor="middle" font-size="11" fill="#2255cc" font-weight="bold">Ef</text>
+    <text x="477" y="268" text-anchor="middle" font-size="11" fill="#e08800" font-weight="bold">E<tspan dy="3" font-size="8">p</tspan></text>
+    <text x="509" y="268" text-anchor="middle" font-size="11" fill="#228833" font-weight="bold">E<tspan dy="3" font-size="8">k</tspan></text>
+    <text x="541" y="268" text-anchor="middle" font-size="11" fill="#2255cc" font-weight="bold">E<tspan dy="3" font-size="8">f</tspan></text>
 
     <!-- Trampolin-Tuch -->
     <path id="trampoline" fill="none" stroke="black" stroke-width="3"/>
@@ -278,7 +278,7 @@
       <span class="eval" id="valPot">0 J</span>
     </div>
     <div id="rowKin" class="erow">
-      <span class="elabel">Kinetische E. E&#x1D4F;</span>
+      <span class="elabel">Kinetische E. E<sub>k</sub></span>
       <div class="ebar-bg">
         <div class="ebar-zero-marker" id="zeroKin"></div>
         <div class="ebar-neg-fill" id="barKinNeg" style="background:#228833"></div>
@@ -287,7 +287,7 @@
       <span class="eval" id="valKin">0 J</span>
     </div>
     <div id="rowSpr" class="erow">
-      <span class="elabel">Federenergie E&#x1DA0;</span>
+      <span class="elabel">Federenergie E<sub>f</sub></span>
       <div class="ebar-bg">
         <div class="ebar-zero-marker" id="zeroSpr"></div>
         <div class="ebar-neg-fill" id="barSprNeg" style="background:#2255cc"></div>
@@ -317,8 +317,8 @@
     <!-- Legende -->
     <div id="legendRow" style="margin-top:5px; font-size:12px; display:flex; flex-direction:column; gap:3px; padding-left:130px;">
       <span style="color:#e08800">Lageenergie E&#x209A; = <span id="legValPot">0 J</span></span>
-      <span style="color:#228833">Kinetische Energie E&#x1D4F; = <span id="legValKin">0 J</span></span>
-      <span style="color:#2255cc">Federenergie E&#x1DA0; = <span id="legValSpr">0 J</span></span>
+      <span style="color:#228833">Kinetische Energie E<sub>k</sub> = <span id="legValKin">0 J</span></span>
+      <span style="color:#2255cc">Federenergie E<sub>f</sub> = <span id="legValSpr">0 J</span></span>
     </div>
 
     <div style="margin-top:10px; font-size:13px; color:#444; display:flex; align-items:center; gap:6px;">
@@ -568,14 +568,14 @@
       setArrow(fgArrow, AX[0], ballCY, AX[0], ballCY + fgLen);
       labelFg.setAttribute('x', AX[0]);
       labelFg.setAttribute('y', ballCY + fgLen + 12);
-      labelFg.textContent = `Fg=${Fg.toFixed(0)}N`;
+      labelFg.innerHTML = `F<tspan dy="3" font-size="8">g</tspan><tspan dy="-3">=</tspan>${Fg.toFixed(0)}N`;
 
       // Fs: Nullpunkt = ballCY, nach oben, nur bei Kontakt
       if (Fs > 0.5) {
         setArrow(fsArrow, AX[1], ballCY, AX[1], ballCY - fsLen);
         labelFs.setAttribute('x', AX[1]);
         labelFs.setAttribute('y', ballCY - fsLen - 4);
-        labelFs.textContent = `Fs=${Fs.toFixed(0)}N`;
+        labelFs.innerHTML = `F<tspan dy="3" font-size="8">f</tspan><tspan dy="-3">=</tspan>${Fs.toFixed(0)}N`;
       } else {
         setArrow(fsArrow, 0, 0, 0, 0);
         labelFs.textContent = '';
