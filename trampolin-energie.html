@@ -254,7 +254,7 @@
     </div>
     <div class="prow">
       <span class="plabel">Federkonstante k (N/m)</span>
-      <input id="sliderK" type="range" min="0" max="1000" step="1" value="0">
+      <input id="sliderK" type="range" min="0" max="1000" step="1" value="148">
       <span class="pval" id="valK"></span>
     </div>
   </div>
@@ -330,8 +330,11 @@
   <script>
     // ── Physikalische Konstanten ──────────────────────────────────────────────
     const g = 9.81;  // m/s²
+    const K_MIN  = 200;   // N/m, untere Grenze Federkonstante
+    const K_MAX  = 100000; // N/m, obere Grenze Federkonstante
+    const K_INIT = 500;    // N/m, Startwert Federkonstante
     let m   = 5;     // kg
-    let k   = 3000;  // N/m
+    let k   = K_INIT; // N/m
     let h0  = 1.0;   // m  Abwurfhöhe
 
     let y  = h0;   // m
@@ -465,7 +468,7 @@
     function applyParams() {
       m   = parseFloat(sliderMass.value);
       h0  = parseFloat(sliderHeight.value);
-      k   = Math.round(500 * Math.pow(200, sliderK.value / 1000));
+      k   = Math.round(K_MIN * Math.pow(K_MAX / K_MIN, sliderK.value / 1000));
       E_START = m * g * h0;
       computeEScale();
       valMassEl.textContent   = `${m} kg`;
