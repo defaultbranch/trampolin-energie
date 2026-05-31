@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trampolin-Energie</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      margin: 0;
+      padding: 8px 8px 20px;
+      font-family: sans-serif;
+      overflow-y: auto;
+    }
+
+    /* SVG scales with container, never wider than viewport */
+    #scene {
+      width: 100%;
+      max-width: 600px;
+      height: auto;
+    }
+
+    /* All panels share the same fluid width */
+    #paramBox, #controls, #energyBox {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    button {
+      padding: 10px 28px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 2px solid #555;
+      background: #fff;
+      touch-action: manipulation;
+      flex-shrink: 0;
+    }
+    button:hover { background: #e0e0e0; }
+
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    #phaseSlider {
+      flex: 1;
+      accent-color: #8B2FC9;
+      min-width: 0;
+      height: 36px;   /* tall touch target */
+      cursor: pointer;
+    }
+    #phaseLabel {
+      font-size: 12px;
+      color: #555;
+      width: 38px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    #paramBox {
+      background: #fff;
+      border: 1.5px solid #ccc;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 10px;
+    }
+    #paramBox h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #333;
+      font-weight: bold;
+    }
+    .prow {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .prow:last-child { margin-bottom: 0; }
+    .plabel {
+      width: 150px;
+      font-size: 12px;
+      color: #444;
+      flex-shrink: 0;
+    }
+    .prow input[type=range] {
+      flex: 1;
+      min-width: 0;
+      accent-color: #8B2FC9;
+      height: 36px;   /* tall touch target */
+      cursor: pointer;
+    }
+    .pval {
+      width: 66px;
+      text-align: right;
+      font-size: 12px;
+      color: #555;
+      flex-shrink: 0;
+    }
+
+    #energyBox {
+      margin-top: 10px;
+      background: #fff;
+      border: 1.5px solid #ccc;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    #energyBox h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #333;
+      font-weight: bold;
+    }
+    .erow {
+      display: flex;
+      align-items: center;
+      margin-bottom: 7px;
+      gap: 8px;
+    }
+    .erow:last-child { margin-bottom: 0; }
+    .elabel {
+      width: 120px;
+      font-size: 12px;
+      color: #444;
+      flex-shrink: 0;
+    }
+    .ebar-bg {
+      flex: 1;
+      min-width: 0;
+      height: 14px;
+      background: #eee;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .ebar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.05s linear;
+    }
+    .eval {
+      width: 56px;
+      text-align: right;
+      font-size: 12px;
+      color: #555;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <svg id="scene" width="600" height="420" viewBox="0 0 600 420" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="#cc2222"/>
+      </marker>
+      <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="#2255cc"/>
+      </marker>
+      <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="#228833"/>
+      </marker>
+    </defs>
+
+    <!-- Trampolin-Rahmen -->
+    <line x1="100" y1="240" x2="100" y2="380" stroke="black" stroke-width="6"/>
+    <line x1="500" y1="240" x2="500" y2="380" stroke="black" stroke-width="6"/>
+    <line x1="70"  y1="380" x2="130" y2="380" stroke="black" stroke-width="4"/>
+    <line x1="470" y1="380" x2="530" y2="380" stroke="black" stroke-width="4"/>
+
+    <!-- Trampolin-Tuch -->
+    <path id="trampoline" fill="none" stroke="black" stroke-width="3"/>
+
+    <!-- Kugel -->
+    <circle id="ball" r="18" fill="#8B2FC9" stroke="#5a1a8a" stroke-width="2"/>
+
+    <!-- Gewichtskraft (rot, nach unten) -->
+    <line id="fgArrow" stroke="#cc2222" stroke-width="2.5" marker-end="url(#arrowRed)"/>
+
+    <!-- Federkraft (blau, nach oben) -->
+    <line id="fsArrow" stroke="#2255cc" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+
+    <!-- Geschwindigkeitsvektor (grün) -->
+    <line id="vArrow" stroke="#228833" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+
+    <!-- Labels -->
+    <text id="labelFg" fill="#cc2222" font-size="13"></text>
+    <text id="labelFs" fill="#2255cc" font-size="13"></text>
+    <text id="labelV"  fill="#228833" font-size="13" font-style="italic"></text>
+
+    <!-- Titel -->
+    <text x="300" y="26" text-anchor="middle" font-size="17" font-weight="bold" fill="#333">Trampolin-Simulation</text>
+  </svg>
+
+  <div id="paramBox">
+    <h3>Parameter</h3>
+    <div class="prow">
+      <span class="plabel">Masse m (kg)</span>
+      <input id="sliderMass" type="range" min="1" max="20" step="0.5" value="5">
+      <span class="pval" id="valMass"></span>
+    </div>
+    <div class="prow">
+      <span class="plabel">Abwurfhöhe h (m)</span>
+      <input id="sliderHeight" type="range" min="0.2" max="3" step="0.1" value="1">
+      <span class="pval" id="valHeight"></span>
+    </div>
+    <div class="prow">
+      <span class="plabel">Federkonstante k (N/m)</span>
+      <input id="sliderK" type="range" min="500" max="10000" step="100" value="3000">
+      <span class="pval" id="valK"></span>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="btnToggle">Start</button>
+    <input id="phaseSlider" type="range" min="0" max="1000" value="0" step="1">
+    <span id="phaseLabel">0 %</span>
+  </div>
+
+  <div id="energyBox">
+    <h3>Energien</h3>
+    <div class="erow">
+      <span class="elabel">Lageenergie E&#x209A;</span>
+      <div class="ebar-bg"><div id="barPot" class="ebar-fill" style="background:#e08800;width:0%"></div></div>
+      <span class="eval" id="valPot">0 J</span>
+    </div>
+    <div class="erow">
+      <span class="elabel">Kinetische E. E&#x1D4F;</span>
+      <div class="ebar-bg"><div id="barKin" class="ebar-fill" style="background:#228833;width:0%"></div></div>
+      <span class="eval" id="valKin">0 J</span>
+    </div>
+    <div class="erow">
+      <span class="elabel">Federenergie E&#x1DA0;</span>
+      <div class="ebar-bg"><div id="barSpr" class="ebar-fill" style="background:#2255cc;width:0%"></div></div>
+      <span class="eval" id="valSpr">0 J</span>
+    </div>
+  </div>
+
+  <script>
+    // ── Physikalische Konstanten ──────────────────────────────────────────────
+    const g = 9.81;  // m/s²
+    let m   = 5;     // kg
+    let k   = 3000;  // N/m
+    let h0  = 1.0;   // m  Abwurfhöhe
+
+    let y  = h0;   // m
+    let vy = 0.0;  // m/s
+
+    // ── SVG-Koordinaten-Mapping ───────────────────────────────────────────────
+    // Trampolin-Ruhelage in SVG: y_svg = 240
+    const TRAMP_SVG = 240;   // px, Oberkante Tuch unverformt
+    const SCALE     = 100;   // px pro Meter
+
+    // ── DOM-Referenzen ────────────────────────────────────────────────────────
+    const ball       = document.getElementById('ball');
+    const trampPath  = document.getElementById('trampoline');
+    const fgArrow    = document.getElementById('fgArrow');
+    const fsArrow    = document.getElementById('fsArrow');
+    const vArrow     = document.getElementById('vArrow');
+    const labelFg    = document.getElementById('labelFg');
+    const labelFs    = document.getElementById('labelFs');
+    const labelV     = document.getElementById('labelV');
+    const btnToggle   = document.getElementById('btnToggle');
+    const phaseSlider  = document.getElementById('phaseSlider');
+    const phaseLabel   = document.getElementById('phaseLabel');
+    const barPot  = document.getElementById('barPot');
+    const barKin  = document.getElementById('barKin');
+    const barSpr  = document.getElementById('barSpr');
+    const valPot  = document.getElementById('valPot');
+    const valKin  = document.getElementById('valKin');
+    const valSpr  = document.getElementById('valSpr');
+
+    // Gesamtenergie bei Start (Referenz für Balkenskalierung) — wird nach Parameteränderung neu gesetzt
+    let E_START = m * g * h0;
+
+    // ── Periode vorberechnen ──────────────────────────────────────────────────
+    const N_SNAP = 1000;
+    let snapshots  = [];
+    let periodTime = 1.0;  // wird von precompute() gesetzt
+
+    function precompute() {
+      const dt = 0.0005;
+      let sy = h0, svy = 0.0, t = 0;
+      let started = false;
+      const states = [{y: sy, vy: svy}];
+
+      for (let iter = 0; iter < 200000; iter++) {
+        const xs = sy < 0 ? -sy : 0;
+        const a  = (k * xs - m * g) / m;
+        svy += a * dt;
+        sy  += svy * dt;
+        t   += dt;
+        states.push({y: sy, vy: svy});
+        if (!started && sy < h0 * 0.9) started = true;
+        if (started && sy >= h0 && svy >= 0) { periodTime = t; break; }
+      }
+
+      snapshots = [];
+      for (let i = 0; i < N_SNAP; i++) {
+        const idx = Math.min(Math.round(i / N_SNAP * (states.length - 1)), states.length - 1);
+        snapshots.push(states[idx]);
+      }
+    }
+    // precompute() is called by applyParams() on init below
+
+    // ── Parameter-Slider
+    const sliderMass   = document.getElementById('sliderMass');
+    const sliderHeight = document.getElementById('sliderHeight');
+    const sliderK      = document.getElementById('sliderK');
+    const valMassEl    = document.getElementById('valMass');
+    const valHeightEl  = document.getElementById('valHeight');
+    const valKEl       = document.getElementById('valK');
+
+    function applyParams() {
+      m   = parseFloat(sliderMass.value);
+      h0  = parseFloat(sliderHeight.value);
+      k   = parseFloat(sliderK.value);
+      E_START = m * g * h0;
+      valMassEl.textContent   = `${m} kg`;
+      valHeightEl.textContent = `${h0.toFixed(1)} m`;
+      valKEl.textContent      = `${k} N/m`;
+      // Simulation zurücksetzen + Snapshots neu berechnen
+      y = h0; vy = 0.0; phaseTime = 0;
+      precompute();
+      updateSlider();
+      render();
+    }
+
+    sliderMass.addEventListener('input',   applyParams);
+    sliderHeight.addEventListener('input', applyParams);
+    sliderK.addEventListener('input',      applyParams);
+
+    // ── Animations-Zustand ────────────────────────────────────────────────────
+    let running   = false;
+    let lastTime  = null;
+    let rafId     = null;
+    let phaseTime = 0;   // vergangene Zeit innerhalb der aktuellen Periode (s)
+    let seeking   = false;  // true solange der Nutzer den Slider zieht
+
+    // ── Pfeil-Hilfsfunktion ───────────────────────────────────────────────────
+    function setArrow(el, x1, y1, x2, y2) {
+      // Minimallänge, damit der Marker sichtbar ist
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.sqrt(dx*dx + dy*dy);
+      if (len < 1) {
+        el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+        el.setAttribute('x2', x1); el.setAttribute('y2', y1);
+      } else {
+        // Verkürze Linie um Marker-Länge (8px) damit Spitze genau bei (x2,y2) endet
+        const f = Math.max(0, (len - 8) / len);
+        el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+        el.setAttribute('x2', x1 + dx * f); el.setAttribute('y2', y1 + dy * f);
+      }
+    }
+
+    // ── Darstellung aktualisieren ─────────────────────────────────────────────
+    function render() {
+      // Kugel-SVG-Position: einheitliche Formel für frei und Kontakt
+      const ballY = TRAMP_SVG - y * SCALE - 18;
+
+      // Trampolin-Tuch: Bézier-Tiefpunkt liegt bei 0.75*sag
+      // → sag = -y * SCALE * (4/3) damit Tuchoberfläche genau unter dem Kugelrand liegt
+      const sag = y < 0 ? (-y * SCALE * 4 / 3) : 0;
+      const cp  = TRAMP_SVG + sag;
+      trampPath.setAttribute('d',
+        `M 100,${TRAMP_SVG} C 233,${cp} 367,${cp} 500,${TRAMP_SVG}`);
+      ball.setAttribute('cx', 300);
+      ball.setAttribute('cy', ballY);
+
+      // Kräfte (in N)
+      const Fg = m * g;
+      const x_spring = y < 0 ? -y : 0;   // Federauslenkung
+      const Fs = k * x_spring;
+
+      // Pfeil-Skalierung: 1 N → 0.4 px
+      const F_SCALE = 0.4;
+      const fgLen = Fg * F_SCALE;
+      const fsLen = Fs * F_SCALE;
+
+      setArrow(fgArrow, 300, ballY + 18, 300, ballY + 18 + fgLen);
+      labelFg.setAttribute('x', 308); labelFg.setAttribute('y', ballY + 18 + fgLen * 0.6);
+      labelFg.textContent = `Fg = ${Fg.toFixed(0)} N`;
+
+      if (Fs > 0.5) {
+        setArrow(fsArrow, 300, ballY - 18, 300, ballY - 18 - fsLen);
+        labelFs.setAttribute('x', 308); labelFs.setAttribute('y', ballY - 18 - fsLen * 0.5);
+        labelFs.textContent = `Fs = ${Fs.toFixed(0)} N`;
+      } else {
+        setArrow(fsArrow, 0,0,0,0);
+        labelFs.textContent = '';
+      }
+
+      // ── Energiebalken ─────────────────────────────────────────────────────
+      const ePot = m * g * y;                        // kann negativ sein
+      const eKin = 0.5 * m * vy * vy;
+      const xSpr = y < 0 ? -y : 0;
+      const eSpr = 0.5 * k * xSpr * xSpr;
+      const eMax = Math.max(E_START, ePot + eKin + eSpr, 1);
+
+      barPot.style.width = `${Math.max(0, ePot / eMax * 100).toFixed(1)}%`;
+      barKin.style.width = `${(eKin / eMax * 100).toFixed(1)}%`;
+      barSpr.style.width = `${(eSpr / eMax * 100).toFixed(1)}%`;
+      valPot.textContent = `${ePot.toFixed(1)} J`;
+      valKin.textContent = `${eKin.toFixed(1)} J`;
+      valSpr.textContent = `${eSpr.toFixed(1)} J`;
+
+      // Geschwindigkeitsvektor (grün): oben wenn positiv, unten wenn negativ
+      const V_SCALE = 10;  // px/(m/s)
+      const vLen = vy * V_SCALE;
+      if (Math.abs(vLen) > 2) {
+        const vStartY = vy > 0 ? ballY - 18 : ballY + 18;
+        setArrow(vArrow, 270, vStartY, 270, vStartY - vLen);
+        labelV.setAttribute('x', 234); labelV.setAttribute('y', vStartY - vLen / 2);
+        labelV.textContent = `v=${vy.toFixed(1)} m/s`;
+      } else {
+        setArrow(vArrow, 0, 0, 0, 0);
+        labelV.textContent = '';
+      }
+    }
+
+    // ── Physik-Schritt ────────────────────────────────────────────────────────
+    function step(dt) {
+      const x_spring = y < 0 ? -y : 0;
+      const Fs = k * x_spring;
+      const Fg = m * g;
+      const a  = (Fs - Fg) / m;   // netto Beschleunigung (aufwärts positiv)
+
+      vy += a * dt;
+      y  += vy * dt;
+
+      // Kugel kann nicht tiefer fallen als maximale Auslenkung (Boden)
+      // (physikalisch wird das durch die Federkraft begrenzt – kein extra Clamp nötig)
+    }
+
+    // ── Slider-Anzeige aktualisieren ─────────────────────────────────────────
+    function updateSlider() {
+      const pct = phaseTime / periodTime;  // 0..1
+      phaseSlider.value = Math.round(pct * 1000);
+      phaseLabel.textContent = `${Math.round(pct * 100)} %`;
+    }
+
+    // ── Animations-Schleife ───────────────────────────────────────────────────
+    function loop(ts) {
+      if (!running) return;
+      if (!seeking && lastTime !== null) {
+        const dt = Math.min((ts - lastTime) / 1000, 0.033); // max 33ms
+        step(dt);
+        phaseTime = (phaseTime + dt) % periodTime;
+        updateSlider();
+      }
+      lastTime = ts;
+      render();
+      rafId = requestAnimationFrame(loop);
+    }
+
+    // ── Button ────────────────────────────────────────────────────────────────
+    btnToggle.addEventListener('click', () => {
+      if (!running) {
+        // Reset
+        y  =  h0;
+        vy =  0.0;
+        phaseTime = 0;
+        updateSlider();
+        running = true;
+        lastTime = null;
+        btnToggle.textContent = 'Stop';
+        rafId = requestAnimationFrame(loop);
+      } else {
+        running = false;
+        btnToggle.textContent = 'Start';
+        if (rafId) cancelAnimationFrame(rafId);
+      }
+    });
+
+    // ── Slider-Steuerung ──────────────────────────────────────────────────────
+    phaseSlider.addEventListener('mousedown',  () => { seeking = true; });
+    phaseSlider.addEventListener('touchstart', () => { seeking = true; }, {passive: true});
+    phaseSlider.addEventListener('mouseup',    () => { seeking = false; lastTime = null; });
+    phaseSlider.addEventListener('touchend',   () => { seeking = false; lastTime = null; });
+
+    phaseSlider.addEventListener('input', () => {
+      const pct = phaseSlider.value / 1000;           // 0..1
+      const idx = Math.min(Math.floor(pct * N_SNAP), N_SNAP - 1);
+      y  = snapshots[idx].y;
+      vy = snapshots[idx].vy;
+      phaseTime = pct * periodTime;
+      phaseLabel.textContent = `${Math.round(pct * 100)} %`;
+      render();
+    });
+
+    // Initiale Darstellung: Parameter aus Slidern lesen
+    applyParams();
+  </script>
+</body>
+</html>
